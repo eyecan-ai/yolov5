@@ -7,6 +7,7 @@ from utils.datasets import *
 from utils.utils import *
 from itertools import count
 
+
 def detect(save_img=False):
     out, source, weights, view_img, save_txt, save_stream, imgsz = \
         opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.save_stream, opt.img_size
@@ -74,10 +75,9 @@ def detect(save_img=False):
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
 
-        #for i, det in enumerate(pred):
+        # for i, det in enumerate(pred):
         #    print(i,det)
 
-        
         # Process detections
         for i, det in enumerate(pred):  # detections per image
             if webcam:  # batch_size >= 1
@@ -119,7 +119,6 @@ def detect(save_img=False):
 
                 if save_stream:
                     cv2.imwrite(str(out_image_path)+"_pred.jpg", im0)
-                    
 
             # Print time (inference + NMS)
             print('%sDone. (%.3fs)' % (s, t2 - t1))

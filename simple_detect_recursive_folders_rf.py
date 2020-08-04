@@ -1,5 +1,6 @@
 import numpy as np
 import argparse
+import numpy
 
 import torch.backends.cudnn as cudnn
 
@@ -105,8 +106,51 @@ def nearest(p, l2, min_dist=350, max_dist=450):
     return target_p2
 
 
+def draw_2d_rf(image, rf, l=50):
+
+    p = rf[:2, 2]
+    cv2.circle(image, tuple(p.astype(int)), 5, (255, 255, 255), -1)
+
+    x_axis = rf[:2, 0]
+    y_axis = rf[:2, 1]
+
+    px = p + x_axis * l
+    py = p + y_axis * l
+    cv2.circle(image, tuple(px.astype(int)), 5, (0, 0, 255), -1)
+    cv2.circle(image, tuple(py.astype(int)), 5, (0, 255, 0), -1)
+
+    cv2.arrowedLine(image,
+                    tuple(p.astype(int)),
+                    tuple(px.astype(int)),
+                    (0, 0, 255),
+                    thickness=2,
+                    line_type=cv2.LINE_AA
+                    )
+    cv2.arrowedLine(image,
+                    tuple(p.astype(int)),
+                    tuple(py.astype(int)),
+                    (0, 255, 0),
+                    thickness=2,
+                    line_type=cv2.LINE_AA
+                    )
+
+
+class WebcamIterator(object):
+
+    def __init__(self):
+        self.webcam = cv2.VideoCapture(-1)
+
+    def __next__(self):
+        ret, frame = self.webcam.read()
+        return ret, frame
+
+    def __iter__(self):
+        return self
+
+
 def detect():
 
+    cv2.namedWindow("image", cv2.WINDOW_NORMAL)
     output_folder = Path('/tmp/outputs')
     if not output_folder.exists():
         output_folder.mkdir(parents=True)
@@ -114,6 +158,13 @@ def detect():
     #folder = Path('/home/daniele/Downloads/buffer_nastro_a_v')
     folder = Path('/home/daniele/Downloads/immagini')
     images_files = folder.glob('**/*.bmp')
+    # images_files = WebcamIterator()
+
+    n_classes = 3
+    center_label = 1
+    tip_label = 2
+    object_expected_size = 45
+    size_tolerange = 0.2
 
     img_size = [512, 512]
     weights = '/home/daniele/work/workspace_python/yolov5/runs/exp16/weights/best.pt'
@@ -121,17 +172,21 @@ def detect():
         img_size,
         weights,
         half=False,
-        conf_ths=0.1,
+        conf_ths=0.4,
         augmented_inference=True
     )
 
-    colors = [(255, 100, 000), (0, 255, 100)]
+    colors = [(255, 00, 000), (0, 255, 00), (0, 0, 255)]
     for image_file in images_files:
-        if not image_file.is_file():
-            continue
-        ret = True
-        print("Loading:", image_file)
-        image = cv2.imread(str(image_file))  # cv2.imread('/media/daniele/Data/datasets/marchesini/scan_0/obj_006/20200725133041588600_45791657-ce6a-11ea-8df7-00d861df1197/00000.jpg')
+
+        if isinstance(image_file, Path):
+            if not image_file.is_file():
+                continue
+            ret = True
+            print("Loading:", image_file)
+            image = cv2.imread(str(image_file))  # cv2.imread('/media/daniele/Data/datasets/marchesini/scan_0/obj_006/20200725133041588600_45791657-ce6a-11ea-8df7-00d861df1197/00000.jpg')
+        else:
+            ret, image = image_file
         if ret:
             rescaled_image, pred = inference_model.predict_raw(image)
             rescaled_preds = inference_model.rescale(pred, rescaled_image, image)
@@ -141,7 +196,7 @@ def detect():
                 output_preds = rescaled_preds[0].detach().cpu().numpy()
                 print(output_preds)
 
-                centers = {0: [], 1: []}
+                centers = {x: [] for x in range(n_classes)}
                 for pred in output_preds:
                     *xyxy, conf, label = pred
                     x = xyxy
@@ -156,27 +211,58 @@ def detect():
                         centers[label] = []
                     centers[label].append(center)
 
-                for p in centers[0]:
-                    p2 = nearest(p, centers[1])
+                for l in centers:
+                    for p in centers[l]:
+                        cv2.circle(image, tuple(p.astype(int)), 3, colors[l], thickness=-1)
+
+                rfs = []
+                for p in centers[center_label]:
+                    p2 = nearest(
+                        p,
+                        centers[tip_label],
+                        min_dist=object_expected_size * (1 - size_tolerange),
+                        max_dist=object_expected_size * (1 + size_tolerange)
+                    )
+                    print("RANGE", object_expected_size * (1 - size_tolerange), object_expected_size * (1 + size_tolerange))
 
                     cv2.circle(image, tuple(p.astype(int)), 10, colors[0], thickness=-1)
                     if p2 is not None:
-                        cv2.circle(image, tuple(p2.astype(int)), 5, colors[1], thickness=-1)
-                        cv2.arrowedLine(image,
-                                        tuple(p.astype(int)),
-                                        tuple(p2.astype(int)),
-                                        colors[1],
-                                        thickness=3,
-                                        line_type=cv2.LINE_AA
-                                        )
+                        diff = p2 - p
+                        direction = diff / np.linalg.norm(diff)
+                        angle = numpy.arctan2(direction[1], direction[0])
+                        T = np.eye(3)
+                        T[:2, :2] = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+                        T[:2, 2] = p
+                        rfs.append(T)
 
+                for rf in rfs:
+                    draw_2d_rf(image, rf)
+                # for p in centers[center_label]:
+                #     p2 = nearest(
+                #         p,
+                #         centers[tip_label],
+                #         min_dist=object_expected_size * (1 - size_tolerange),
+                #         max_dist=object_expected_size * (1 + size_tolerange)
+                #     )
+                #     print("RANGE", object_expected_size * (1 - size_tolerange), object_expected_size * (1 + size_tolerange))
+
+                #     cv2.circle(image, tuple(p.astype(int)), 10, colors[0], thickness=-1)
+                #     if p2 is not None:
+                #         cv2.circle(image, tuple(p2.astype(int)), 5, colors[1], thickness=-1)
+                #         cv2.arrowedLine(image,
+                #                         tuple(p.astype(int)),
+                #                         tuple(p2.astype(int)),
+                #                         colors[1],
+                #                         thickness=3,
+                #                         line_type=cv2.LINE_AA
+                #                         )
                 # print(label)
                 # text = str(f"{int(label)}_{conf:.2f}")
                 # plot_one_box_as_point(xyxy, image, label='', color=colors[label], line_thickness=-1)
 
             cv2.imshow("image", image)
 
-            c = cv2.waitKey(0)
+            c = cv2.waitKey(0 if not isinstance(images_files, WebcamIterator) else 1)
             if c == ord('q'):
                 break
 

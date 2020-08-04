@@ -1011,7 +1011,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
     # Fix class - colour map
     prop_cycle = plt.rcParams['axes.prop_cycle']
     # https://stackoverflow.com/questions/51350872/python-from-color-name-to-rgb
-    hex2rgb = lambda h: tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
+    def hex2rgb(h): return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
     color_lut = [hex2rgb(h) for h in prop_cycle.by_key()['color']]
 
     for i, img in enumerate(images):

@@ -156,23 +156,26 @@ def detect():
         output_folder.mkdir(parents=True)
     output_counter = count()
     #folder = Path('/home/daniele/Downloads/buffer_nastro_a_v')
-    folder = Path('/home/daniele/Downloads/immagini')
-    images_files = folder.glob('**/*.bmp')
-    # images_files = WebcamIterator()
+
+    if False:
+        folder = Path('/home/daniele/Downloads/vial')
+        images_files = folder.glob('**/*.bmp')
+    else:
+        images_files = WebcamIterator()
 
     n_classes = 3
     center_label = 1
     tip_label = 2
-    object_expected_size = 45
-    size_tolerange = 0.2
+    object_expected_size = 100
+    size_tolerange = 0.5
 
     img_size = [512, 512]
-    weights = '/home/daniele/work/workspace_python/yolov5/runs/exp16/weights/best.pt'
+    weights = '/home/daniele/work/workspace_python/yolov5/runs/exp17/weights/best.pt'
     inference_model = InferenceModel(
         img_size,
         weights,
-        half=False,
-        conf_ths=0.4,
+        half=True,
+        conf_ths=0.3,
         augmented_inference=True
     )
 

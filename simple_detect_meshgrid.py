@@ -21,6 +21,7 @@ from utils.utils import (
 )
 from fpdf import FPDF
 from itertools import count
+from persefone.utils.colors.palettes import MaterialPalette, Palette
 
 
 class InferenceModel(object):
@@ -164,22 +165,22 @@ def detect():
         images_files = WebcamIterator()
 
     n_classes = 3
-    center_label = 1
-    tip_label = 2
-    object_expected_size = 100
-    size_tolerange = 0.5
+    center_label = 0
+    tip_label = 1
+    object_expected_size = 140
+    size_tolerange = 2
 
     img_size = [512, 512]
     weights = '/home/daniele/work/workspace_python/yolov5/runs/exp20/weights/best.pt'
     inference_model = InferenceModel(
         img_size,
         weights,
-        half=True,
+        half=False,
         conf_ths=0.3,
         augmented_inference=True
     )
 
-    colors = [(255, 00, 000), (0, 255, 00), (0, 0, 255)]
+    colors = MaterialPalette()
     for image_file in images_files:
 
         if isinstance(image_file, Path):
@@ -216,52 +217,24 @@ def detect():
 
                 for l in centers:
                     for p in centers[l]:
-                        cv2.circle(image, tuple(p.astype(int)), 3, colors[l], thickness=-1)
+                        cv2.circle(image, tuple(p.astype(int)), 8, colors.get_color(l).rgb, thickness=-1, lineType=cv2.LINE_AA)
 
-                rfs = []
                 for p in centers[center_label]:
-                    p2 = nearest(
-                        p,
-                        centers[tip_label],
-                        min_dist=object_expected_size * (1 - size_tolerange),
-                        max_dist=object_expected_size * (1 + size_tolerange)
-                    )
-                    print("RANGE", object_expected_size * (1 - size_tolerange), object_expected_size * (1 + size_tolerange))
 
-                    cv2.circle(image, tuple(p.astype(int)), 10, colors[0], thickness=-1)
-                    if p2 is not None:
-                        diff = p2 - p
-                        direction = diff / np.linalg.norm(diff)
-                        angle = numpy.arctan2(direction[1], direction[0])
-                        T = np.eye(3)
-                        T[:2, :2] = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-                        T[:2, 2] = p
-                        rfs.append(T)
-
-                for rf in rfs:
-                    draw_2d_rf(image, rf)
-                # for p in centers[center_label]:
-                #     p2 = nearest(
-                #         p,
-                #         centers[tip_label],
-                #         min_dist=object_expected_size * (1 - size_tolerange),
-                #         max_dist=object_expected_size * (1 + size_tolerange)
-                #     )
-                #     print("RANGE", object_expected_size * (1 - size_tolerange), object_expected_size * (1 + size_tolerange))
-
-                #     cv2.circle(image, tuple(p.astype(int)), 10, colors[0], thickness=-1)
-                #     if p2 is not None:
-                #         cv2.circle(image, tuple(p2.astype(int)), 5, colors[1], thickness=-1)
-                #         cv2.arrowedLine(image,
-                #                         tuple(p.astype(int)),
-                #                         tuple(p2.astype(int)),
-                #                         colors[1],
-                #                         thickness=3,
-                #                         line_type=cv2.LINE_AA
-                #                         )
-                # print(label)
-                # text = str(f"{int(label)}_{conf:.2f}")
-                # plot_one_box_as_point(xyxy, image, label='', color=colors[label], line_thickness=-1)
+                    for p2 in centers[tip_label]:
+                        distance = np.linalg.norm(p2 - p)
+                        if distance >= object_expected_size * (1 - size_tolerange):
+                            if distance <= object_expected_size * (1 + size_tolerange):
+                                cv2.circle(image, tuple(p.astype(int)), 10, colors.get_color(0).rgb, thickness=-1, lineType=cv2.LINE_AA)
+                                cv2.circle(image, tuple(p.astype(int)), 5, colors.get_color(5).rgb, thickness=-1, lineType=cv2.LINE_AA)
+                                if p2 is not None:
+                                    cv2.arrowedLine(image,
+                                                    tuple(p.astype(int)),
+                                                    tuple(p2.astype(int)),
+                                                    (255, 255, 255),
+                                                    thickness=2,
+                                                    line_type=cv2.LINE_AA
+                                                    )
 
             cv2.imshow("image", image)
 
